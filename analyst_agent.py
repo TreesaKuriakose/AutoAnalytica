@@ -10,12 +10,9 @@ import spacy
 import backoff
 import openai
 
-# ------------------------------
-# CONFIGURATION
-# ------------------------------
 
-NEWSAPI_KEY = "d209e9bd7f5648f1831bdaa433c85d05"
-openai.api_key = ""   # leave empty if you don't have OpenAI key
+NEWSAPI_KEY = ""
+openai.api_key = ""  
 
 
 QUERY = "AI startups"
@@ -26,18 +23,12 @@ EMBED_MODEL = "all-MiniLM-L6-v2"
 SIMILARITY_THRESHOLD = 0.80
 OUTPUT_CSV = "autoanalytica_output.csv"
 
-# ------------------------------
-# LOAD MODELS
-# ------------------------------
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
 
 embedder = SentenceTransformer(EMBED_MODEL)
 nlp = spacy.load("en_core_web_sm")
 
-# ------------------------------
-# STEP 1: FETCH NEWS
-# ------------------------------
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=3)
 def fetch_page(page):
@@ -62,9 +53,6 @@ def fetch_articles():
     logging.info(f"Fetched {len(all_articles)} raw articles.")
     return all_articles
 
-# ------------------------------
-# STEP 2: CLEAN + PARSE ARTICLES
-# ------------------------------
 
 def extract_text(url, fallback):
     try:
@@ -89,9 +77,7 @@ def normalize_articles(articles):
     logging.info("Normalized article content.")
     return cleaned
 
-# ------------------------------
-# STEP 3: DEDUPLICATION
-# ------------------------------
+
 
 def dedupe_articles(cleaned):
     contents = [c["title"] + "\n" + c["text"][:500] for c in cleaned]
@@ -115,9 +101,6 @@ def dedupe_articles(cleaned):
     logging.info(f"Deduped from {len(cleaned)} → {len(final)}")
     return final
 
-# ------------------------------
-# STEP 4: HYPE FILTER
-# ------------------------------
 
 def info_density(text):
     doc = nlp(text[:2000])
@@ -137,9 +120,6 @@ def filter_hype(articles):
     logging.info(f"Filtered → {len(output)} articles remain.")
     return output
 
-# ------------------------------
-# STEP 5: LLM JSON EXTRACTION
-# ------------------------------
 
 def extract_json(article):
     """
@@ -149,12 +129,12 @@ def extract_json(article):
     title = article["title"]
     text = article["text"]
 
-    # Extract company name (first org entity)
+
     doc = nlp(text[:400])
     companies = [ent.text for ent in doc.ents if ent.label_ == "ORG"]
     company = companies[0] if companies else "Unknown"
 
-    # Simple category detection
+
     if "funding" in text.lower() or "raise" in text.lower():
         category = "Funding"
         is_funding = True
@@ -165,14 +145,14 @@ def extract_json(article):
         category = "General AI News"
         is_funding = False
 
-    # Sentiment (basic rule)
+
     sentiment = 0
     if "success" in text.lower() or "growth" in text.lower():
         sentiment = 0.5
     elif "problem" in text.lower() or "concern" in text.lower():
         sentiment = -0.5
 
-    # Summary (first 2 sentences)
+
     summary = ". ".join(text.split(".")[:2]) + "."
 
     return {
@@ -184,18 +164,12 @@ def extract_json(article):
     }
 
 
-# ------------------------------
-# STEP 6: EXPORT RESULTS
-# ------------------------------
 
 def save_to_csv(rows):
     df = pd.DataFrame(rows)
     df.to_csv(OUTPUT_CSV, index=False)
     logging.info(f"Saved {len(rows)} records → {OUTPUT_CSV}")
 
-# ------------------------------
-# MAIN PIPELINE
-# ------------------------------
 
 def run():
     t0 = time.time()
